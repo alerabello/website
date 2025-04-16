@@ -6,28 +6,13 @@ on:
       - main
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     environment: main
-
-    strategy:
-      matrix:
-        node-version: [17.x]
 
     steps:
       - name: Checkout código
         uses: actions/checkout@v3
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ matrix.node-version }}
-
-      - name: Instalar dependências NPM
-        run: npm install
-
-      - name: Build produção
-        run: npm run build
 
       - name: Configurar credenciais AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v2
@@ -35,18 +20,18 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
 
-      - name: Deploy para S3
+      - name: Deploy para S3 (raiz do projeto)
         uses: jakejarvis/s3-sync-action@master
         with:
           args: --delete
         env:
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_REGION: us-east-1
-          SOURCE_DIR: "public"
+          SOURCE_DIR: "."
 
-      - name: Invalidar CloudFront
+      - name: Invalidar cache CloudFront
         uses: chetan/invalidate-cloudfront-action@v2
         env:
           DISTRIBUTION: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
-          PATHS: "/index.html"
+          PATHS: "/*"
           AWS_REGION: us-east-1
