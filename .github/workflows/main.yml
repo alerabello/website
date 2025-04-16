@@ -4,6 +4,16 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      aws_account:
+        description: 'AWS Account to deploy to (develop, stage, prod)'
+        required: true
+        default: 'develop'
+      branch:
+        description: 'Branch to build and deploy'
+        required: true
+        default: 'main'
 
 permissions:
   id-token: write       # necessário para OIDC
@@ -12,16 +22,39 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: main
+    environment: ${{ github.event.inputs.aws_account || 'main' }}
 
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref_name }}
+
+      - name: Definir role-to-assume
+        run: |
+          case "${{ github.event.inputs.aws_account }}" in
+            prod)
+              echo "role=${{ secrets.AWS_ROLE_ARN_PROD }}" >> $GITHUB_ENV
+              ;;
+            stage)
+              echo "role=${{ secrets.AWS_ROLE_ARN_STAGE }}" >> $GITHUB_ENV
+              ;;
+            develop)
+              echo "role=${{ secrets.AWS_ROLE_ARN_DEVELOP }}" >> $GITHUB_ENV
+              ;;
+            "" | main)
+              echo "role=${{ secrets.AWS_ROLE_TO_ASSUME }}" >> $GITHUB_ENV
+              ;;
+            *)
+              echo "❌ Invalid aws_account: ${{ github.event.inputs.aws_account }}"
+              exit 1
+              ;;
+          esac
 
       - name: Configurar credenciais AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ env.role }}
           aws-region: us-east-1
 
       - name: Deploy para S3 com AWS CLI
