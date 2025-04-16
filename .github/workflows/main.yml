@@ -18,9 +18,10 @@ on:
 permissions:
   id-token: write       # necessário para OIDC
   contents: read        # necessário para puxar o código do repo
+  issues: write         # necessário para usar aprovação manual
 
 jobs:
-  deploy:
+  prepare:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.aws_account || 'main' }}
 
@@ -50,6 +51,32 @@ jobs:
               exit 1
               ;;
           esac
+
+  approval:
+    needs: prepare
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.aws_account || 'main' }}
+
+    steps:
+      - name: Solicitar aprovação manual
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: alerabello
+          minimum-approvals: 1
+          additional-approved-words: 'Approve, Approved, approve, approved'
+        timeout-minutes: 10
+
+  deploy:
+    needs: approval
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.aws_account || 'main' }}
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref_name }}
 
       - name: Configurar credenciais AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v4
