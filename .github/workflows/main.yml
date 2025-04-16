@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+
 permissions:
-  id-token: write      
-  contents: read        
+  id-token: write       # necessário para OIDC
+  contents: read        # necessário para puxar o código do repo
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -14,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout código
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Configurar credenciais AWS via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -22,14 +24,11 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
 
-      - name: Deploy para S3 (raiz do projeto)
-        uses: jakejarvis/s3-sync-action@master
-        with:
-          args: --delete
+      - name: Deploy para S3 com AWS CLI
+        run: |
+          aws s3 sync . s3://${{ secrets.AWS_S3_BUCKET }} --delete
         env:
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_REGION: us-east-1
-          SOURCE_DIR: "."
 
       - name: Invalidar cache CloudFront
         uses: chetan/invalidate-cloudfront-action@v2
